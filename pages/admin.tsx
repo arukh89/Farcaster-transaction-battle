@@ -39,19 +39,32 @@ export default function AdminPanel({ authorized, user }: AdminProps) {
       <h1>⚡ TX Battle Royale Admin Panel</h1>
       <p>Welcome, {user?.username || user?.fid}</p>
 
-      <button onClick={evaluateNow} disabled={loading} style={{ padding: '10px 16px', borderRadius: 8 }}>
+      <button
+        onClick={evaluateNow}
+        disabled={loading}
+        style={{ padding: '10px 16px', borderRadius: 8 }}
+      >
         {loading ? 'Evaluating...' : '🚀 Evaluate Now'}
       </button>
 
       {result && (
-        <pre style={{ background: '#111', color: '#0f0', padding: 12, marginTop: 12 }}>{JSON.stringify(result, null, 2)}</pre>
+        <pre
+          style={{
+            background: '#111',
+            color: '#0f0',
+            padding: 12,
+            marginTop: 12,
+          }}
+        >
+          {JSON.stringify(result, null, 2)}
+        </pre>
       )}
     </div>
   );
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const adminFid = process.env.ADMIN_FID || process.env.NEXT_PUBLIC_ADMIN_FID;
+  const adminFid = "250704"; // Hardcode FID kamu (@ukhy89)
   const token = ctx.req.cookies['neynar_token'];
 
   if (!token) {
@@ -59,7 +72,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   }
 
   const user = await getUserFromToken(token);
-  if (!user || String(user.fid) !== String(adminFid)) {
+  if (!user || String(user.fid) !== adminFid) {
     return { props: { authorized: false } };
   }
 
