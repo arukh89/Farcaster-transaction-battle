@@ -34,6 +34,13 @@ interface Prediction {
   created_at?: string;
 }
 
+// ✅ tambahin deklarasi global biar TS tau window.APP_NAME
+declare global {
+  interface Window {
+    APP_NAME?: string;
+  }
+}
+
 export default function Home() {
   const [user, setUser] = useState<Player | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -46,7 +53,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!window.APP_NAME) window.APP_NAME = 'TX Battle Royale';
-    // restore user from localStorage if present
     const stored = typeof window !== 'undefined' ? localStorage.getItem('neynar_user') : null;
     if (stored) {
       try {
@@ -57,7 +63,6 @@ export default function Home() {
       }
     }
 
-    // subscribe to players
     const pChannel = supabase
       .channel('players')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
@@ -65,7 +70,6 @@ export default function Home() {
       })
       .subscribe();
 
-    // messages
     const mChannel = supabase
       .channel('messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
@@ -73,7 +77,6 @@ export default function Home() {
       })
       .subscribe();
 
-    // leaderboard
     const lChannel = supabase
       .channel('leaderboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, () => {
@@ -81,7 +84,6 @@ export default function Home() {
       })
       .subscribe();
 
-    // predictions
     const rChannel = supabase
       .channel('predictions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, () => {
@@ -97,7 +99,6 @@ export default function Home() {
     setStatus('Ready. Connect Farcaster to join.');
 
     return () => {
-      // unsubscribe channels on unmount
       try {
         supabase.removeChannel(pChannel);
         supabase.removeChannel(mChannel);
@@ -113,26 +114,32 @@ export default function Home() {
   }
 
   async function fetchMessages() {
-    const { data } = await supabase.from('messages').select('* order by created_at desc').limit(200);
+    // ✅ perbaikan query Supabase
+    const { data } = await supabase.from('messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
     if (data) setMessages(data.reverse());
   }
 
   async function fetchLeaderboard() {
-    const { data } = await supabase.from('leaderboard').select('*').order('score', { ascending: false });
+    const { data } = await supabase.from('leaderboard')
+      .select('*')
+      .order('score', { ascending: false });
     if (data) setLeaderboard(data);
   }
 
   async function fetchPredictions() {
-    const { data } = await supabase.from('predictions').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('predictions')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (data) setPredictions(data);
   }
 
   async function connectFarcaster() {
-    // start SIWN flow via Neynar
     signInWithNeynar();
   }
 
-  // Called after Neynar redirects to /auth/callback which will save user in localStorage & cookie.
   async function joinGame() {
     if (!user) return alert('Connect Farcaster first.');
     await supabase.from('players').upsert({ fid: user.fid, displayName: user.displayName }).select();
@@ -143,7 +150,7 @@ export default function Home() {
     if (!user) return alert('Connect Farcaster first.');
     if (!predictionInput) return alert('Enter a prediction first.');
 
-    const blockHeight = null; // optional: let admin evaluate with real block height
+    const blockHeight = null;
     await supabase.from('predictions').insert({
       fid: user.fid,
       displayName: user.displayName,
@@ -167,14 +174,12 @@ export default function Home() {
 
   return (
     <>
-      {/* SPLASH */}
       <div id="splashScreen" style={{ display: 'none' }}>
         <h1>🚀 TX Battle Royale</h1>
         <p className="subtitle">Loading... Please wait</p>
         <p id="status">{status}</p>
       </div>
 
-      {/* GAME */}
       <div id="gameScreen">
         <div className="wrap">
           <header style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -246,4 +251,4 @@ export default function Home() {
       </div>
     </>
   );
-}
+    }
