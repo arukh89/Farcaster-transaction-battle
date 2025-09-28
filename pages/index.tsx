@@ -2,13 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { signInWithNeynar } from '../lib/neynarAuth';
 
-declare global {
-  interface Window {
-    APP_NAME?: string;
-    FarcasterMiniApp?: any;
-  }
-}
-
 interface Player {
   id: string;
   fid: string;
@@ -54,7 +47,7 @@ export default function Home() {
   useEffect(() => {
     if (!window.APP_NAME) window.APP_NAME = 'TX Battle Royale';
 
-    // restore user
+    // restore user dari localStorage
     const stored = typeof window !== 'undefined' ? localStorage.getItem('neynar_user') : null;
     if (stored) {
       try {
@@ -65,7 +58,7 @@ export default function Home() {
       }
     }
 
-    // subscribe channels
+    // subscribe Supabase realtime
     const pChannel = supabase
       .channel('players')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, fetchPlayers)
@@ -86,6 +79,7 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, fetchPredictions)
       .subscribe();
 
+    // initial fetch
     fetchPlayers();
     fetchMessages();
     fetchLeaderboard();
@@ -99,7 +93,9 @@ export default function Home() {
         supabase.removeChannel(mChannel);
         supabase.removeChannel(lChannel);
         supabase.removeChannel(rChannel);
-      } catch (err) {}
+      } catch (err) {
+        /* ignore */
+      }
     };
   }, []);
 
@@ -124,11 +120,7 @@ export default function Home() {
   }
 
   async function connectFarcaster() {
-    if (window.FarcasterMiniApp) {
-      window.FarcasterMiniApp.openUrl("https://warpcast.com");
-    } else {
-      signInWithNeynar();
-    }
+    signInWithNeynar();
   }
 
   async function joinGame() {
@@ -139,13 +131,19 @@ export default function Home() {
 
   async function submitPrediction() {
     if (!user) return alert('Connect Farcaster first.');
-    if (!predictionInput) return alert('Enter a prediction first.');
+    if (!predictionInput) return alert('Enter a block height first.');
+
+    const blockHeight = parseInt(predictionInput, 10);
+    if (isNaN(blockHeight)) return alert('Prediction must be a number.');
 
     await supabase.from('predictions').insert({
       fid: user.fid,
       displayName: user.displayName,
-      prediction: predictionInput
+      block_height: blockHeight,
+      prediction: predictionInput,
+      status: 'pending',
     });
+
     setPredictionInput('');
     setStatus('Prediction submitted.');
   }
@@ -156,7 +154,7 @@ export default function Home() {
     await supabase.from('messages').insert({
       fid: user.fid,
       displayName: user.displayName,
-      text: chatInput
+      text: chatInput,
     });
     setChatInput('');
   }
@@ -173,41 +171,100 @@ export default function Home() {
       {/* GAME */}
       <div id="gameScreen">
         <div className="wrap">
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <header
+            style={{
+              gridColumn: '1 / -1',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <div>
               <h1>TX Battle Royale</h1>
               <p className="subtitle">Predict & Compete on Bitcoin Blocks</p>
             </div>
-            <button onClick={connectFarcaster} className="wallet-btn">
+            <button id="connectWalletBtn" onClick={connectFarcaster} className="wallet-btn">
               {user ? `Connected: ${user.displayName}` : 'Connect Farcaster'}
             </button>
           </header>
 
           <div className="card">
             <h2>Controls</h2>
-            <button onClick={joinGame} className="btn">Join Game</button>
-            <button onClick={() => navigator.clipboard.writeText(window.location.href)} className="btn">Share</button>
+            <div className="controls">
+              <button id="joinBtn" onClick={joinGame} className="btn">
+                Join Game
+              </button>
+              <button
+                id="shareBtn"
+                className="btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  alert('Link copied');
+                }}
+              >
+                Share
+              </button>
+            </div>
 
-            <h3>Prediction</h3>
-            <input value={predictionInput} onChange={(e) => setPredictionInput(e.target.value)} placeholder="Enter prediction..." />
-            <button onClick={submitPrediction} className="btn">Submit</button>
+            <h3>Prediction (Next Block Height)</h3>
+            <input
+              type="number"
+              id="predictionInput"
+              value={predictionInput}
+              onChange={(e) => setPredictionInput(e.target.value)}
+              placeholder="Enter block height..."
+            />
+            <button id="submitPredictionBtn" onClick={submitPrediction} className="btn">
+              Submit
+            </button>
 
-            <h3>Players ({players.length})</h3>
-            <ul>{players.map((p) => (<li key={p.fid}>{p.displayName}</li>))}</ul>
+            <h3>
+              Players <span id="playerCount">({players.length})</span>
+            </h3>
+            <ul id="playersContainer" className="players-list">
+              {players.map((p) => (
+                <li key={p.fid}>{p.displayName}</li>
+              ))}
+            </ul>
           </div>
 
           <div>
             <div className="card">
               <h2>Chat</h2>
-              <div>{messages.map((m) => (<div key={m.id}><b>{m.displayName}:</b> {m.text}</div>))}</div>
-              <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
-                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type a message..." />
+              <div id="messagesList" className="chat-list">
+                {messages.map((m) => (
+                  <div key={m.id} className="chat-item">
+                    <strong>{m.displayName}:</strong> <span>{m.text}</span>
+                  </div>
+                ))}
+              </div>
+              <form
+                id="chatForm"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  sendMessage();
+                }}
+              >
+                <input
+                  id="chatInput"
+                  name="chat"
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Type a message..."
+                />
               </form>
             </div>
 
             <div className="card">
               <h2>Leaderboard</h2>
-              <ul>{leaderboard.map((l) => (<li key={l.id}>{l.displayName} — {l.score}</li>))}</ul>
+              <ul id="leaderboardContainer" className="leaderboard-list">
+                {leaderboard.map((l) => (
+                  <li key={l.id}>
+                    {l.displayName} — {l.score}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="card">
@@ -215,14 +272,17 @@ export default function Home() {
               <ul>
                 {predictions.map((p) => (
                   <li key={p.id}>
-                    {p.displayName} predicted <b>{p.prediction}</b> → {p.status}
+                    {p.displayName} predicted <b>{p.block_height}</b> →{' '}
+                    {p.status === 'pending' && <span style={{ color: 'orange' }}>⏳ pending</span>}
+                    {p.status === 'correct' && <span style={{ color: 'green' }}>✅ correct</span>}
+                    {p.status === 'wrong' && <span style={{ color: 'red' }}>❌ wrong</span>}
                   </li>
                 ))}
               </ul>
             </div>
           </div>
 
-          <footer style={{ textAlign: 'center' }}>
+          <footer style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
             <p>TX Battle Royale © 2025 - Powered by Farcaster Mini App</p>
           </footer>
         </div>
