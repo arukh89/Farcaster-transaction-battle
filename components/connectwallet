@@ -1,0 +1,33 @@
+import { useEffect } from "react";
+
+export default function ConnectWallet() {
+  useEffect(() => {
+    // load script SIWN
+    const script = document.createElement("script");
+    script.src = "https://neynarxyz.github.io/siwn/raw/1.2.0/index.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
+  return (
+    <div
+      className="neynar_signin"
+      data-client_id={process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID}
+      data-success-callback="onSignInSuccess"
+      data-theme="dark" // bisa light/dark
+    />
+  );
+}
+
+// global callback function (window scope)
+if (typeof window !== "undefined") {
+  (window as any).onSignInSuccess = (data: any) => {
+    console.log("✅ SIWN success:", data);
+
+    // data berisi: fid, user, signer_uuid
+    localStorage.setItem("neynar_user", JSON.stringify(data));
+
+    // simpan signer_uuid/token ke cookie atau backend
+    // misalnya untuk server-side auth
+  };
+}
